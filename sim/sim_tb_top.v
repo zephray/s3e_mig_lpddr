@@ -61,7 +61,7 @@
 
   module sim_tb_top;
 
-   localparam DEVICE_WIDTH = 16; // Memory device data width
+   localparam DEVICE_WIDTH = 32; // Memory device data width
    localparam REG_ENABLE   = `REGISTERED; // registered addr/ctrl
 
    localparam real CLK_PERIOD_NS      = 10;
@@ -89,8 +89,8 @@
    wire [(`DATA_STROBE_WIDTH-1):0]   ddr_dqs_sdram;
    wire [(`DATA_MASK_WIDTH-1):0]     ddr_dm_sdram;
    reg  [(`DATA_MASK_WIDTH-1):0]     ddr_dm_sdram_tmp;
-   reg  [(`CLK_WIDTH-1):0]           ddr_clk_sdram;
-   reg  [(`CLK_WIDTH-1):0]           ddr_clk_n_sdram;
+   reg                               ddr_clk_sdram;
+   reg                               ddr_clk_n_sdram;
    reg  [(`ROW_ADDRESS-1):0]         ddr_address_sdram;
    reg  [(`BANK_ADDRESS-1):0]        ddr_ba_sdram;
    reg                               ddr_ras_l_sdram;
@@ -102,8 +102,8 @@
    wire [(`DATA_WIDTH-1):0]          ddr_dq_fpga;
    wire [(`DATA_STROBE_WIDTH-1):0]   ddr_dqs_fpga;
    wire [(`DATA_MASK_WIDTH-1):0]     ddr_dm_fpga;
-   wire [(`CLK_WIDTH-1):0]           ddr_clk_fpga;
-   wire [(`CLK_WIDTH-1):0]           ddr_clk_n_fpga;
+   wire                              ddr_clk_fpga;
+   wire                              ddr_clk_n_fpga;
    wire [(`ROW_ADDRESS-1):0]         ddr_address_fpga;
    wire [(`BANK_ADDRESS-1):0]        ddr_ba_fpga;
    wire                              ddr_ras_l_fpga;
@@ -232,7 +232,7 @@
    // Extra one clock pipelining for RDIMM address and
    // control signals is implemented here (Implemented external to memory model)
    //***************************************************************************
-   always @( posedge ddr_clk_sdram[0] ) begin
+   always @( posedge ddr_clk_sdram ) begin
       if ( ddr_reset_n == 1'b0 ) begin
          ddr_ras_l_reg <= 1'b1;
          ddr_cas_l_reg <= 1'b1;
@@ -255,31 +255,22 @@
    // Memory model instances
    /////////////////////////////////////////////////////////////////////////////
 
-   genvar i;
-   generate
-      if (DEVICE_WIDTH == 16) begin
-// if memory part is x16
-// if the data width is multiple of 16
-       for(i = 0; i < `DATA_STROBE_WIDTH/2; i = i+1) begin : GEN
-          
-          ddr_model u_mem0
-            (
-             .Dq    (ddr_dq_sdram[(16*(i+1))-1 : i*16]),
-             .Dqs   (ddr_dqs_sdram[(2*(i+1))-1 : i*2]),
-             .Addr  (ddr_address_sdram),
-             .Ba    (ddr_ba_sdram),
-             .Clk   (ddr_clk_sdram[i]),
-             .Clk_n (ddr_clk_n_sdram[i]),
-             .Cke   (ddr_cke_sdram),
-             .Cs_n  (ddr_cs_l_sdram[0]),
-             .Ras_n (ddr_ras_l_sdram),
-             .Cas_n (ddr_cas_l_sdram),
-             .We_n  (ddr_we_l_sdram),
-             .Dm    (ddr_dm_sdram[(2*(i+1))-1 : i*2])
-             );
-       end
-    end
-   endgenerate
+// memory part is x32
+    mobile_ddr u_mem0
+    (
+        .Dq    (ddr_dq_sdram),
+        .Dqs   (ddr_dqs_sdram),
+        .Addr  (ddr_address_sdram),
+        .Ba    (ddr_ba_sdram),
+        .Clk   (ddr_clk_sdram),
+        .Clk_n (ddr_clk_n_sdram),
+        .Cke   (ddr_cke_sdram),
+        .Cs_n  (ddr_cs_l_sdram[0]),
+        .Ras_n (ddr_ras_l_sdram),
+        .Cas_n (ddr_cas_l_sdram),
+        .We_n  (ddr_we_l_sdram),
+        .Dm    (ddr_dm_sdram)
+    );
 
    
 
