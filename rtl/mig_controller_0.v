@@ -113,6 +113,8 @@ module mig_controller_0
    localparam INIT_LOAD_MODE_REG    = 2'b10;
    localparam INIT_AUTO_REFRESH     = 2'b11;
    
+   localparam INIT_DONE_COUNT       = 4'b0101;
+   
    localparam LMR_VAL               = `LOAD_MODE_REGISTER;   
    localparam CAS_LAT_VAL           = LMR_VAL[6:4];   
    localparam BURST_LEN_VAL         = LMR_VAL[2:0];   
@@ -144,7 +146,6 @@ module mig_controller_0
    reg 				   ddr_rst_dqs_web4;
    reg [`BANK_ADDRESS-1:0] 	   ddr_ba1;
    reg [`ROW_ADDRESS-1:0] 	   ddr_address1;
-   reg [7:0] 			   dll_rst_count;
    reg [3:0] 			   init_count;
    reg 				   init_done;
    reg 				   init_done_r1;
@@ -186,9 +187,6 @@ module mig_controller_0
    reg 				   auto_ref_wait1;
    reg 				   auto_ref_wait2;
    reg [4:0] 			   count5;
-   reg [`ROW_ADDRESS-1:0] 	   emr_1;
-   reg [`ROW_ADDRESS-1:0] 	   lmr_dll_rst;
-   reg [`ROW_ADDRESS-1:0] 	   lmr_dll_set;
    reg 				   write_enable_r;
    reg 				   write_enable_r1;
    reg 				   rst_dqs_div_r1;
@@ -302,19 +300,6 @@ module mig_controller_0
       else begin
          burst_length <= lmr[2:0];
          cas_latency  <= lmr[6:4];
-      end
-   end
-   
-   always @ (negedge clk) begin
-      if (rst180_r == 1'b1) begin
-         emr_1       <= `ROW_ADDRESS'b0;
-         lmr_dll_rst <= `ROW_ADDRESS'b0;
-         lmr_dll_set <= `ROW_ADDRESS'b0;
-      end
-      else begin
-         lmr_dll_rst <= {lmr[`ROW_ADDRESS - 1 : 9], 1'b1, lmr[7 : 0]};
-         lmr_dll_set <= {lmr[`ROW_ADDRESS - 1 : 9], 1'b0, lmr[7 : 0]};
-         emr_1       <= emr;
       end
    end
    
@@ -688,7 +673,7 @@ module mig_controller_0
         init_mem <= 1'b0;
       else if ( initialize_memory )
         init_mem <= 1'b1;
-      else if ( (init_count == 4'b0111) && (count5 == 5'd1) )
+      else if ( (init_count == INIT_DONE_COUNT) && (count5 == 5'd1) )
         init_mem <= 1'b0;
       else
         init_mem <= init_mem;
@@ -706,19 +691,7 @@ module mig_controller_0
         init_count    <= init_count;
    end
 
-   assign init_done_value =  ((init_count == 4'b0111)
-			      && (dll_rst_count == 8'b0000_0001)) ? 1'b1 : 1'b0;
-
-   always @( negedge clk ) begin
-     if( rst180_r )
-       dll_rst_count  <= 8'd0;
-     else if(init_count == 4'b0010)
-       dll_rst_count  <= 'd200;
-     else if(dll_rst_count != 8'b0000_0001)
-       dll_rst_count    <= dll_rst_count - 8'b0000_0001;
-     else
-       dll_rst_count    <= dll_rst_count;
-   end
+   assign init_done_value =  (init_count == INIT_DONE_COUNT) ? 1'b1 : 1'b0;
 
    assign go_to_active_value =(((write_cmd_in == 1'b1) && 
 				(accept_cmd_in == 1'b1)) ||
@@ -775,43 +748,31 @@ module mig_controller_0
                      init_next_state = INIT_PRECHARGE;
                    4'b0001 : begin
                       if (count5 == 5'd1)
-                        init_next_state = INIT_LOAD_MODE_REG;
+                        init_next_state = INIT_AUTO_REFRESH;
                       else
                         init_next_state = INIT_IDLE;
                    end
                    4'b0010 : begin
                       if (count5 == 5'd1)
+                        init_next_state = INIT_AUTO_REFRESH;
+                      else
+                        init_next_state = INIT_IDLE;
+                   end
+                   4'b0011 : begin
+                      if (count5 == 5'd1)
                         init_next_state = INIT_LOAD_MODE_REG;
                       else
                         init_next_state = INIT_IDLE;
                    end		   
-                   4'b0011 : begin
-                    if(dll_rst_count == 8'b0000_0001)
-                        init_next_state = INIT_PRECHARGE;
-                      else
-                        init_next_state = INIT_IDLE;
-                   end
                    4'b0100 : begin
-                      if (count5 == 5'd1)
-                        init_next_state = INIT_AUTO_REFRESH;
-                      else
-                        init_next_state = INIT_IDLE;
-                   end
-                   4'b0101 : begin
-                      if (count5 == 5'd1)
-                        init_next_state = INIT_AUTO_REFRESH;
-                      else
-                        init_next_state = INIT_IDLE;
-                   end
-                   4'b0110 : begin
                       if (count5 == 5'd1)
                         init_next_state = INIT_LOAD_MODE_REG;
                       else
                         init_next_state = INIT_IDLE;
                    end
-                   4'b0111 :
-                     init_next_state = INIT_IDLE;
-
+                   4'b0101 : begin
+                      init_next_state = INIT_IDLE;
+                   end
                    default :
                      init_next_state = INIT_IDLE;
                  endcase
@@ -981,11 +942,10 @@ module mig_controller_0
         ddr_address1 <= {`ROW_ADDRESS{1'b0}};
       else if(init_mem)
         case ( init_count )
-          4'b0000, 4'b0011 : ddr_address1 <= {`ROW_ADDRESS{1'b0}}
+          4'b0000 : ddr_address1 <= {`ROW_ADDRESS{1'b0}}
                                              | 12'h400; //Precharge All
-          4'b0001 : ddr_address1 <= emr_1; //EMR to enable DLL
-          4'b0010 : ddr_address1 <= lmr_dll_rst; //LMR for DLL reset
-          4'b0110 : ddr_address1 <= lmr_dll_set; //LMR for DLL set
+          4'b0011 : ddr_address1 <= lmr; //LMR
+          4'b0100 : ddr_address1 <= emr; //EMR
           default : ddr_address1 <= {`ROW_ADDRESS{1'b0}};
         endcase
       else if ( current_state == PRECHARGE )
@@ -1002,8 +962,8 @@ module mig_controller_0
    always @( negedge clk ) begin
       if ( rst180_r )
         ddr_ba1 <= {`BANK_ADDRESS{1'b0}};
-      else if ( init_count == 4'b0001 )
-        ddr_ba1 <= {{`BANK_ADDRESS-1{1'b0}},1'b1};
+      else if ( init_count == 4'b0100 ) // EMR
+        ddr_ba1 <= {2'b10};
       else if ( current_state == ACTIVE || current_state == FIRST_WRITE ||
                 current_state == BURST_WRITE || current_state == BURST_READ )
         ddr_ba1 <= ba_address_reg2;

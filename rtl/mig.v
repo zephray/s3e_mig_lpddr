@@ -58,7 +58,7 @@
    CORE_GENERATION_INFO = "ddr_sp3,mig_v3_61,{component_name=ddr_sp3, data_width=16, memory_width=8, clk_width=1, bank_address=2, row_address=12, column_address=9, no_of_cs=1, cke_width=1, registered=0, data_mask=1, mask_enable=1, load_mode_register=12'b000000100001, ext_load_mode_register=12'b000000000000, language=Verilog, synthesis_tool=ISE, interface_type=DDR_SDRAM, no_of_controllers=1}" *)
 module mig
   (
-   inout  [15:0]   cntrl0_ddr_dq,
+   inout  [31:0]   cntrl0_ddr_dq,
    output [11:0]   cntrl0_ddr_a,
    output [1:0]    cntrl0_ddr_ba,
    output          cntrl0_ddr_cke,
@@ -66,7 +66,7 @@ module mig
    output          cntrl0_ddr_ras_n,
    output          cntrl0_ddr_cas_n,
    output          cntrl0_ddr_we_n,
-   output [1:0]    cntrl0_ddr_dm,
+   output [3:0]    cntrl0_ddr_dm,
    input           cntrl0_rst_dqs_div_in,
    output          cntrl0_rst_dqs_div_out,
    input           sys_clk_in,
@@ -74,7 +74,7 @@ module mig
    output          cntrl0_data_valid_out,
    output          cntrl0_init_done,
    input           reset_in_n,
-   inout  [1:0]    cntrl0_ddr_dqs,
+   inout  [3:0]    cntrl0_ddr_dqs,
    output [0:0]    cntrl0_ddr_ck,
    output [0:0]    cntrl0_ddr_ck_n
    );
